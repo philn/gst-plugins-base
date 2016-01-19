@@ -2,6 +2,7 @@ SUBDIRS = \
 	tag \
 	fft \
 	audio \
+	http \
 	rtp \
 	sdp \
 	rtsp \

@@ -907,6 +907,7 @@ gst-libs/gst/allocators/Makefile
 gst-libs/gst/audio/Makefile
 gst-libs/gst/app/Makefile
 gst-libs/gst/fft/Makefile
+gst-libs/gst/http/Makefile
 gst-libs/gst/riff/Makefile
 gst-libs/gst/rtp/Makefile
 gst-libs/gst/rtsp/Makefile
@@ -925,6 +926,8 @@ pkgconfig/gstreamer-app.pc
 pkgconfig/gstreamer-app-uninstalled.pc
 pkgconfig/gstreamer-fft.pc
 pkgconfig/gstreamer-fft-uninstalled.pc
+pkgconfig/gstreamer-http.pc
+pkgconfig/gstreamer-http-uninstalled.pc
 pkgconfig/gstreamer-pbutils.pc
 pkgconfig/gstreamer-pbutils-uninstalled.pc
 pkgconfig/gstreamer-riff.pc
