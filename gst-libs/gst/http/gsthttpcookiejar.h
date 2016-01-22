@@ -63,23 +63,19 @@ typedef struct {
   void             *padding[GST_PADDING_LARGE];
 } GstHttpCookieJarClass;
 
-GType                     gst_http_cookie_jar_get_type                    (void);
+GType                     gst_http_cookie_jar_get_type                (void);
 
-GstHttpCookieJar *        gst_http_cookie_jar_new                         (void);
+GstHttpCookieJar *        gst_http_cookie_jar_new                     (void);
 
-void                      gst_http_cookie_jar_add_cookie                  (GstHttpCookieJar             *jar,
+void                      gst_http_cookie_jar_add_cookie              (GstHttpCookieJar             *jar,
                                                                        gpointer author,
 								       GstHttpCookie                *cookie);
 
-void                      gst_http_cookie_jar_add_cookie_with_first_party (GstHttpCookieJar             *jar,
-								       gchar                   *first_party,
-								       GstHttpCookie                *cookie);
-
-void                      gst_http_cookie_jar_delete_cookie               (GstHttpCookieJar             *jar,
+void                      gst_http_cookie_jar_delete_cookie           (GstHttpCookieJar             *jar,
                                                                        gpointer author,
 								       GstHttpCookie                *cookie);
 
-GSList        *           gst_http_cookie_jar_all_cookies                 (GstHttpCookieJar             *jar);
+GSList *                  gst_http_cookie_jar_all_cookies             (GstHttpCookieJar             *jar);
 
 G_END_DECLS
 

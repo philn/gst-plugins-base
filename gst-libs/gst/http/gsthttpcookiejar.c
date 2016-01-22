@@ -62,6 +62,11 @@ typedef struct
   GHashTable *domains, *serials;
   guint serial;
 
+  /* no cookies are added/removed when an operation
+   * is ongoing. The mutex and this boolean are to
+   * ensure this */
+  gboolean ongoing_operation;
+
   GRecMutex mutex;
 } GstHttpCookieJarPrivate;
 #define GST_HTTP_COOKIE_JAR_GET_PRIVATE(o) (G_TYPE_INSTANCE_GET_PRIVATE ((o), GST_TYPE_HTTP_COOKIE_JAR, GstHttpCookieJarPrivate))
@@ -69,6 +74,24 @@ typedef struct
 #define GST_HTTP_COOKIE_JAR_GET_MUTEX(j) &(GST_HTTP_COOKIE_JAR_GET_PRIVATE (GST_HTTP_COOKIE_JAR_CAST (j))->mutex)
 #define GST_HTTP_COOKIE_JAR_LOCK(j) g_rec_mutex_lock (GST_HTTP_COOKIE_JAR_GET_MUTEX(j))
 #define GST_HTTP_COOKIE_JAR_UNLOCK(j) g_rec_mutex_unlock (GST_HTTP_COOKIE_JAR_GET_MUTEX(j))
+
+static gboolean
+gst_http_cookie_jar_check_start_operation (GstHttpCookieJar * jar)
+{
+  GstHttpCookieJarPrivate *priv = GST_HTTP_COOKIE_JAR_GET_PRIVATE (jar);
+  if (priv->ongoing_operation)
+    return FALSE;
+  priv->ongoing_operation = TRUE;
+  return TRUE;
+}
+
+static void
+gst_http_cookie_jar_finish_operation (GstHttpCookieJar * jar)
+{
+  GstHttpCookieJarPrivate *priv = GST_HTTP_COOKIE_JAR_GET_PRIVATE (jar);
+  g_return_if_fail (priv->ongoing_operation);
+  priv->ongoing_operation = FALSE;
+}
 
 /**
  * gst_http_str_case_hash:
@@ -257,7 +280,10 @@ gst_http_cookie_jar_add_cookie (GstHttpCookieJar * jar, gpointer author,
   g_return_if_fail (cookie != NULL);
 
   GST_HTTP_COOKIE_JAR_LOCK (jar);
-
+  if (!gst_http_cookie_jar_check_start_operation (jar)) {
+    GST_HTTP_COOKIE_JAR_UNLOCK (jar);
+    return;
+  }
 #if 0
   /* Never accept cookies for public domains. */
   if (!g_hostname_is_ip_address (cookie->domain) &&
@@ -293,6 +319,7 @@ gst_http_cookie_jar_add_cookie (GstHttpCookieJar * jar, gpointer author,
         gst_http_cookie_free (old_cookie);
       }
 
+      gst_http_cookie_jar_finish_operation (jar);
       GST_HTTP_COOKIE_JAR_UNLOCK (jar);
       return;
     }
@@ -302,6 +329,7 @@ gst_http_cookie_jar_add_cookie (GstHttpCookieJar * jar, gpointer author,
   /* The new cookie is... a new cookie */
   if (cookie->expires && date_time_is_past (cookie->expires)) {
     gst_http_cookie_free (cookie);
+    gst_http_cookie_jar_finish_operation (jar);
     GST_HTTP_COOKIE_JAR_UNLOCK (jar);
     return;
   }
@@ -314,6 +342,7 @@ gst_http_cookie_jar_add_cookie (GstHttpCookieJar * jar, gpointer author,
   }
 
   gst_http_cookie_jar_changed (jar, author, NULL, cookie);
+  gst_http_cookie_jar_finish_operation (jar);
   GST_HTTP_COOKIE_JAR_UNLOCK (jar);
 }
 
@@ -378,8 +407,14 @@ gst_http_cookie_jar_delete_cookie (GstHttpCookieJar * jar, gpointer author,
   priv = GST_HTTP_COOKIE_JAR_GET_PRIVATE (jar);
 
   GST_HTTP_COOKIE_JAR_LOCK (jar);
+  if (gst_http_cookie_jar_check_start_operation (jar)) {
+    GST_HTTP_COOKIE_JAR_UNLOCK (jar);
+    return;
+  }
+
   cookies = g_hash_table_lookup (priv->domains, cookie->domain);
   if (cookies == NULL) {
+    gst_http_cookie_jar_finish_operation (jar);
     GST_HTTP_COOKIE_JAR_UNLOCK (jar);
     return;
   }
@@ -391,9 +426,11 @@ gst_http_cookie_jar_delete_cookie (GstHttpCookieJar * jar, gpointer author,
       g_hash_table_insert (priv->domains, g_strdup (cookie->domain), cookies);
       gst_http_cookie_jar_changed (jar, author, c, NULL);
       gst_http_cookie_free (c);
+      gst_http_cookie_jar_finish_operation (jar);
       GST_HTTP_COOKIE_JAR_UNLOCK (jar);
       return;
     }
   }
+  gst_http_cookie_jar_finish_operation (jar);
   GST_HTTP_COOKIE_JAR_UNLOCK (jar);
 }
