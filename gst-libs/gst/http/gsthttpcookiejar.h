@@ -44,22 +44,23 @@ G_BEGIN_DECLS
 #define GST_HTTP_COOKIE_JAR_CAST(obj)       ((GstHttpCookieJar *) (obj))
 
 typedef struct _GstHttpCookieJar {
-	GstObject parent;
+  GstObject parent;
 
+  /*< private >*/
+  void             *padding[GST_PADDING_LARGE];
 } GstHttpCookieJar;
 
 typedef struct {
-	GstObjectClass parent_class;
+  GstObjectClass parent_class;
 
-	/* signals */
-	void (*changed) (GstHttpCookieJar *jar,
-                         gpointer author,
-			 GstHttpCookie    *old_cookie,
-			 GstHttpCookie    *new_cookie);
+  /* signals */
+  void (*changed) (GstHttpCookieJar *jar,
+                   gpointer author,
+                   GstHttpCookie    *old_cookie,
+                   GstHttpCookie    *new_cookie);
 
-	/* Padding for future expansion */
-	void (*_libsoup_reserved1) (void);
-	void (*_libsoup_reserved2) (void);
+  /*< private >*/
+  void             *padding[GST_PADDING_LARGE];
 } GstHttpCookieJarClass;
 
 GType                     gst_http_cookie_jar_get_type                    (void);
