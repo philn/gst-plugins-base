@@ -59,8 +59,7 @@ static guint signals[LAST_SIGNAL] = { 0 };
 typedef struct
 {
   gboolean constructed;
-  GHashTable *domains, *serials;
-  guint serial;
+  GHashTable *domains;
 
   /* no cookies are added/removed when an operation
    * is ongoing. The mutex and this boolean are to
@@ -139,7 +138,6 @@ gst_http_cookie_jar_init (GstHttpCookieJar * jar)
 
   priv->domains = g_hash_table_new_full (gst_http_str_case_hash,
       gst_http_str_case_equal, g_free, NULL);
-  priv->serials = g_hash_table_new (NULL, NULL);
 }
 
 static void
@@ -161,7 +159,6 @@ gst_http_cookie_jar_finalize (GObject * object)
   while (g_hash_table_iter_next (&iter, &key, &value))
     gst_http_cookies_free (value);
   g_hash_table_destroy (priv->domains);
-  g_hash_table_destroy (priv->serials);
 
   G_OBJECT_CLASS (gst_http_cookie_jar_parent_class)->finalize (object);
 }
@@ -228,13 +225,6 @@ gst_http_cookie_jar_changed (GstHttpCookieJar * jar, gpointer author,
     GstHttpCookie * old, GstHttpCookie * new)
 {
   GstHttpCookieJarPrivate *priv = GST_HTTP_COOKIE_JAR_GET_PRIVATE (jar);
-
-  if (old && old != new)
-    g_hash_table_remove (priv->serials, old);
-  if (new) {
-    priv->serial++;
-    g_hash_table_insert (priv->serials, new, GUINT_TO_POINTER (priv->serial));
-  }
 
   if (!priv->constructed)
     return;
