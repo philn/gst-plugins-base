@@ -61,8 +61,14 @@ typedef struct
   gboolean constructed;
   GHashTable *domains, *serials;
   guint serial;
+
+  GRecMutex mutex;
 } GstHttpCookieJarPrivate;
 #define GST_HTTP_COOKIE_JAR_GET_PRIVATE(o) (G_TYPE_INSTANCE_GET_PRIVATE ((o), GST_TYPE_HTTP_COOKIE_JAR, GstHttpCookieJarPrivate))
+
+#define GST_HTTP_COOKIE_JAR_GET_MUTEX(j) &(GST_HTTP_COOKIE_JAR_GET_PRIVATE (GST_HTTP_COOKIE_JAR_CAST (j))->mutex)
+#define GST_HTTP_COOKIE_JAR_LOCK(j) g_rec_mutex_lock (GST_HTTP_COOKIE_JAR_GET_MUTEX(j))
+#define GST_HTTP_COOKIE_JAR_UNLOCK(j) g_rec_mutex_unlock (GST_HTTP_COOKIE_JAR_GET_MUTEX(j))
 
 /**
  * gst_http_str_case_hash:
@@ -102,7 +108,6 @@ gst_http_str_case_equal (gconstpointer v1, gconstpointer v2)
 
   return g_ascii_strcasecmp (string1, string2) == 0;
 }
-
 
 static void
 gst_http_cookie_jar_init (GstHttpCookieJar * jar)
@@ -251,6 +256,8 @@ gst_http_cookie_jar_add_cookie (GstHttpCookieJar * jar, gpointer author,
   g_return_if_fail (GST_HTTP_IS_COOKIE_JAR (jar));
   g_return_if_fail (cookie != NULL);
 
+  GST_HTTP_COOKIE_JAR_LOCK (jar);
+
 #if 0
   /* Never accept cookies for public domains. */
   if (!g_hostname_is_ip_address (cookie->domain) &&
@@ -286,6 +293,7 @@ gst_http_cookie_jar_add_cookie (GstHttpCookieJar * jar, gpointer author,
         gst_http_cookie_free (old_cookie);
       }
 
+      GST_HTTP_COOKIE_JAR_UNLOCK (jar);
       return;
     }
     last = oc;
@@ -294,6 +302,7 @@ gst_http_cookie_jar_add_cookie (GstHttpCookieJar * jar, gpointer author,
   /* The new cookie is... a new cookie */
   if (cookie->expires && date_time_is_past (cookie->expires)) {
     gst_http_cookie_free (cookie);
+    GST_HTTP_COOKIE_JAR_UNLOCK (jar);
     return;
   }
 
@@ -305,6 +314,7 @@ gst_http_cookie_jar_add_cookie (GstHttpCookieJar * jar, gpointer author,
   }
 
   gst_http_cookie_jar_changed (jar, author, NULL, cookie);
+  GST_HTTP_COOKIE_JAR_UNLOCK (jar);
 }
 
 /**
@@ -332,6 +342,8 @@ gst_http_cookie_jar_all_cookies (GstHttpCookieJar * jar)
 
   priv = GST_HTTP_COOKIE_JAR_GET_PRIVATE (jar);
 
+  GST_HTTP_COOKIE_JAR_LOCK (jar);
+
   g_hash_table_iter_init (&iter, priv->domains);
 
   while (g_hash_table_iter_next (&iter, &key, &value)) {
@@ -340,6 +352,7 @@ gst_http_cookie_jar_all_cookies (GstHttpCookieJar * jar)
       l = g_slist_prepend (l, gst_http_cookie_copy (p->data));
   }
 
+  GST_HTTP_COOKIE_JAR_UNLOCK (jar);
   return l;
 }
 
@@ -364,9 +377,12 @@ gst_http_cookie_jar_delete_cookie (GstHttpCookieJar * jar, gpointer author,
 
   priv = GST_HTTP_COOKIE_JAR_GET_PRIVATE (jar);
 
+  GST_HTTP_COOKIE_JAR_LOCK (jar);
   cookies = g_hash_table_lookup (priv->domains, cookie->domain);
-  if (cookies == NULL)
+  if (cookies == NULL) {
+    GST_HTTP_COOKIE_JAR_UNLOCK (jar);
     return;
+  }
 
   for (p = cookies; p; p = p->next) {
     GstHttpCookie *c = (GstHttpCookie *) p->data;
@@ -375,7 +391,9 @@ gst_http_cookie_jar_delete_cookie (GstHttpCookieJar * jar, gpointer author,
       g_hash_table_insert (priv->domains, g_strdup (cookie->domain), cookies);
       gst_http_cookie_jar_changed (jar, author, c, NULL);
       gst_http_cookie_free (c);
+      GST_HTTP_COOKIE_JAR_UNLOCK (jar);
       return;
     }
   }
+  GST_HTTP_COOKIE_JAR_UNLOCK (jar);
 }

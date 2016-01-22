@@ -41,6 +41,7 @@ G_BEGIN_DECLS
 #define GST_HTTP_IS_COOKIE_JAR(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GST_TYPE_HTTP_COOKIE_JAR))
 #define GST_HTTP_IS_COOKIE_JAR_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((obj), GST_TYPE_HTTP_COOKIE_JAR))
 #define GST_HTTP_COOKIE_JAR_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), GST_TYPE_HTTP_COOKIE_JAR, GstHttpCookieJarClass))
+#define GST_HTTP_COOKIE_JAR_CAST(obj)       ((GstHttpCookieJar *) (obj))
 
 typedef struct _GstHttpCookieJar {
 	GstObject parent;
