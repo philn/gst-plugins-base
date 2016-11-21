@@ -1,0 +1,25 @@
+EXPORTS
+  gst_http_cookie_new
+  gst_http_cookie_copy
+  gst_http_cookie_get_name
+  gst_http_cookie_set_name
+  gst_http_cookie_get_value
+  gst_http_cookie_set_value
+  gst_http_cookie_get_domain
+  gst_http_cookie_set_domain
+  gst_http_cookie_get_path
+  gst_http_cookie_set_path
+  gst_http_cookie_set_max_age
+  gst_http_cookie_get_expires
+  gst_http_cookie_set_expires
+  gst_http_cookie_get_secure
+  gst_http_cookie_set_secure
+  gst_http_cookie_get_http_only
+  gst_http_cookie_set_http_only
+  gst_http_cookie_equal
+  gst_http_cookie_free
+  gst_http_cookies_free
+  gst_http_cookie_jar_new
+  gst_http_cookie_jar_add_cookie
+  gst_http_cookie_jar_delete_cookie
+  gst_http_cookie_jar_all_cookies

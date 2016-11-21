@@ -1,5 +1,6 @@
 subdir('tag')
 subdir('fft')
+subdir('http')
 subdir('video')
 subdir('audio')
 subdir('rtp')
