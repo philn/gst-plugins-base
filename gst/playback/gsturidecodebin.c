@@ -1386,6 +1386,13 @@ gen_source_element (GstURIDecodeBin * decoder)
         "setting subtitle-encoding=%s to source element", decoder->encoding);
     g_object_set (source, "subtitle-encoding", decoder->encoding, NULL);
   }
+
+  pspec = g_object_class_find_property (source_class, "post-http-context");
+  if (pspec != NULL && G_PARAM_SPEC_VALUE_TYPE (pspec) == G_TYPE_BOOLEAN) {
+    GST_DEBUG_OBJECT (decoder,
+        "setting post-http-context=TRUE to source element");
+    g_object_set (source, "post-http-context", TRUE, NULL);
+  }
   return source;
 
   /* ERRORS */
