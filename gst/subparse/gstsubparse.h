@@ -92,6 +92,7 @@ struct _GstSubParse {
   /* contains the UTF-8 decoded input */
   GString *textbuf;
 
+  gboolean auto_detect_format;
   GstSubParseFormat parser_type;
   gboolean parser_detected;
   const gchar *subtitle_codec;

@@ -50,7 +50,8 @@ enum
 {
   PROP_0,
   PROP_ENCODING,
-  PROP_VIDEOFPS
+  PROP_VIDEOFPS,
+  PROP_AUTO_DETECT_INPUT_FORMAT,
 };
 
 static void
@@ -67,7 +68,8 @@ static GstStaticPadTemplate sink_templ = GST_STATIC_PAD_TEMPLATE ("sink",
     GST_STATIC_CAPS ("application/x-subtitle; application/x-subtitle-sami; "
         "application/x-subtitle-tmplayer; application/x-subtitle-mpl2; "
         "application/x-subtitle-dks; application/x-subtitle-qttext;"
-        "application/x-subtitle-lrc; application/x-subtitle-vtt")
+        "application/x-subtitle-lrc; application/x-subtitle-vtt;"
+        "application/x-subtitle-srt")
     );
 
 static GstStaticPadTemplate src_templ = GST_STATIC_PAD_TEMPLATE ("src",
@@ -158,6 +160,13 @@ gst_sub_parse_class_init (GstSubParseClass * klass)
           "and the subtitle format requires it subtitles may be out of sync.",
           0, 1, G_MAXINT, 1, 24000, 1001,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  g_object_class_install_property (object_class, PROP_AUTO_DETECT_INPUT_FORMAT,
+      g_param_spec_boolean ("autodetect-input-format",
+          "auto-detect input format",
+          "Wether the parser should try to auto-detect the subtitle format or simply rely on the sink pad caps",
+          TRUE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT));
 }
 
 static void
@@ -177,6 +186,7 @@ gst_sub_parse_init (GstSubParse * subparse)
       GST_DEBUG_FUNCPTR (gst_sub_parse_src_query));
   gst_element_add_pad (GST_ELEMENT (subparse), subparse->srcpad);
 
+  subparse->auto_detect_format = TRUE;
   subparse->textbuf = g_string_new (NULL);
   subparse->parser_type = GST_SUB_PARSE_FORMAT_UNKNOWN;
   subparse->flushing = FALSE;
@@ -330,6 +340,9 @@ gst_sub_parse_set_property (GObject * object, guint prop_id,
       }
       break;
     }
+    case PROP_AUTO_DETECT_INPUT_FORMAT:
+      subparse->auto_detect_format = g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -350,6 +363,9 @@ gst_sub_parse_get_property (GObject * object, guint prop_id,
       break;
     case PROP_VIDEOFPS:
       gst_value_set_fraction (value, subparse->fps_n, subparse->fps_d);
+      break;
+    case PROP_AUTO_DETECT_INPUT_FORMAT:
+      g_value_set_boolean (value, subparse->auto_detect_format);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1498,6 +1514,8 @@ gst_sub_parse_data_format_autodetect (gchar * match_str)
   dks_grx = (GRegex *) dks_rx_once.retval;
   vtt_grx = (GRegex *) vtt_rx_once.retval;
 
+  GST_DEBUG ("Looking for a format match for '%s'", match_str);
+
   if (g_regex_match (mdvd_grx, match_str, 0, NULL)) {
     GST_LOG ("MicroDVD (frame based) format detected");
     return GST_SUB_PARSE_FORMAT_MDVDSUB;
@@ -1576,6 +1594,27 @@ gst_sub_parse_data_format_autodetect (gchar * match_str)
 
   GST_DEBUG ("no subtitle format detected");
   return GST_SUB_PARSE_FORMAT_UNKNOWN;
+}
+
+static GstCaps *
+gst_sub_parse_format_from_sink_caps (GstSubParse * self)
+{
+  GstCaps *sink_caps = gst_pad_get_current_caps (self->sinkpad);
+  g_printerr ("subparse sink caps: %s\n", gst_caps_to_string (sink_caps));
+
+  self->parser_type = GST_SUB_PARSE_FORMAT_SUBRIP;
+  self->subtitle_codec =
+      gst_sub_parse_get_format_description (self->parser_type);
+  parser_state_init (&self->state);
+
+  self->state.allowed_tags = (gpointer) allowed_srt_tags;
+  self->state.allows_tag_attributes = FALSE;
+  self->parse_line = parse_subrip;
+
+  gst_caps_unref (sink_caps);
+  return gst_caps_new_simple ("text/x-raw",
+      "format", G_TYPE_STRING, "pango-markup", NULL);
+
 }
 
 static GstCaps *
@@ -1731,7 +1770,9 @@ handle_buffer (GstSubParse * self, GstBuffer * buf)
 
   /* make sure we know the format */
   if (G_UNLIKELY (self->parser_type == GST_SUB_PARSE_FORMAT_UNKNOWN)) {
-    if (!(caps = gst_sub_parse_format_autodetect (self))) {
+    if (!self->auto_detect_format) {
+      caps = gst_sub_parse_format_from_sink_caps (self);
+    } else if (!(caps = gst_sub_parse_format_autodetect (self))) {
       return GST_FLOW_EOS;
     }
     if (!gst_pad_set_caps (self->srcpad, caps)) {

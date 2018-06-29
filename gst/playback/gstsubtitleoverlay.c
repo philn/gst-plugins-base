@@ -719,6 +719,21 @@ gst_subtitle_overlay_set_fps (GstSubtitleOverlay * self)
   g_object_set (self->parser, "video-fps", self->fps_n, self->fps_d, NULL);
 }
 
+static void
+gst_subtitle_overlay_set_auto_detect_input_format (GstSubtitleOverlay * self)
+{
+  if (!self->parser)
+    return;
+
+  if (!_has_property_with_type (G_OBJECT (self->parser),
+          "autodetect-input-format", G_TYPE_BOOLEAN))
+    return;
+
+  GST_DEBUG_OBJECT (self,
+      "Updating autodetect-input-format property in parser");
+  g_object_set (self->parser, "autodetect-input-format", FALSE, NULL);
+}
+
 static const gchar *
 _get_silent_property (GstElement * element, gboolean * invert)
 {
@@ -781,6 +796,7 @@ _setup_parser (GstSubtitleOverlay * self)
 
   /* Try to set video fps on the parser */
   gst_subtitle_overlay_set_fps (self);
+  gst_subtitle_overlay_set_auto_detect_input_format (self);
 
 
   return TRUE;
@@ -1917,7 +1933,7 @@ gst_subtitle_overlay_subtitle_sink_event (GstPad * pad, GstObject * parent,
   GstSubtitleOverlay *self = GST_SUBTITLE_OVERLAY (parent);
   gboolean ret;
 
-  GST_DEBUG_OBJECT (pad, "Got event %" GST_PTR_FORMAT, event);
+  GST_LOG_OBJECT (pad, "Got event %" GST_PTR_FORMAT, event);
 
   if (GST_EVENT_TYPE (event) == GST_EVENT_CUSTOM_DOWNSTREAM_OOB &&
       gst_event_has_name (event, "playsink-custom-subtitle-flush")) {
