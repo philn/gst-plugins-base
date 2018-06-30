@@ -9,7 +9,8 @@ pbutils_sources = [
   'missing-plugins.c',
   'gstaudiovisualizer.c',
   'gstdiscoverer.c',
-  'gstdiscoverer-types.c'
+  'gstdiscoverer-types.c',
+  'markup-utils.c'
   ]
 
 pbconf = configuration_data()
@@ -33,6 +34,7 @@ pbutils_headers = [
   'missing-plugins.h',
   'gstdiscoverer.h',
   'gstaudiovisualizer.h',
+  'markup-utils.h'
 ]
 install_headers(pbutils_headers, subdir : 'gstreamer-1.0/gst/pbutils/')
 

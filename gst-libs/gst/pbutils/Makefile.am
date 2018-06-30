@@ -10,7 +10,8 @@ headers_pbutils = \
 	install-plugins.h \
 	missing-plugins.h \
 	gstdiscoverer.h \
-	gstaudiovisualizer.h
+	gstaudiovisualizer.h \
+	markup-utils.h
 
 # variables used for enum/marshal generation
 glib_enum_headers = $(headers_pbutils)
@@ -34,7 +35,8 @@ libgstpbutils_@GST_API_VERSION@_la_SOURCES = \
 	missing-plugins.c \
 	gstdiscoverer.c   \
 	gstdiscoverer-types.c \
-	gstaudiovisualizer.c
+	gstaudiovisualizer.c \
+	markup-utils.c
 
 nodist_libgstpbutils_@GST_API_VERSION@_la_SOURCES = \
 	pbutils-enumtypes.c

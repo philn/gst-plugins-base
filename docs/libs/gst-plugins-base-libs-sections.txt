@@ -2554,6 +2554,13 @@ gst_codec_utils_opus_parse_header
 </SECTION>
 
 <SECTION>
+<FILE>gstpbutilsmarkuputils</FILE>
+<INCLUDE>gst/pbutils/pbutils.h</INCLUDE>
+<SUBSECTION>
+gst_markup_utils_sanitize_subrip_text
+</SECTION>
+
+<SECTION>
 <FILE>encoding-profile</FILE>
 <INCLUDE>gst/pbutils/pbutils.h</INCLUDE>
 GstEncodingProfile

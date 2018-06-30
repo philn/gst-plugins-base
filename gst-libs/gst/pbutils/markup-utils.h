@@ -1,5 +1,6 @@
-/* GStreamer base utils library
- * Copyright (C) 2006 Tim-Philipp Müller <tim centricular net>
+/* GStreamer base utils library text markup utility functions
+ * Copyright (C) 2018 Philippe Normand <philn@igalia.com>
+ *
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -17,29 +18,17 @@
  * Boston, MA 02110-1301, USA.
  */
 
-#ifndef __GST_PB_UTILS_BASE_UTILS_H__
-#define __GST_PB_UTILS_BASE_UTILS_H__
+#ifndef __GST_PB_UTILS_MARKUP_UTILS_H__
+#define __GST_PB_UTILS_MARKUP_UTILS_H__
 
 #include <gst/gst.h>
-
-#include <gst/pbutils/gstpluginsbaseversion.h>
-#include <gst/pbutils/descriptions.h>
-#include <gst/pbutils/missing-plugins.h>
-#include <gst/pbutils/install-plugins.h>
-#include <gst/pbutils/codec-utils.h>
-#include <gst/pbutils/pbutils-enumtypes.h>
-#include <gst/pbutils/gstdiscoverer.h>
-#include <gst/pbutils/encoding-profile.h>
-#include <gst/pbutils/encoding-target.h>
-#include <gst/pbutils/gstaudiovisualizer.h>
-#include <gst/pbutils/markup-utils.h>
+#include <gst/pbutils/pbutils-prelude.h>
 
 G_BEGIN_DECLS
 
 GST_PBUTILS_API
-void    gst_pb_utils_init (void);
+void gst_markup_utils_sanitize_subrip_text (gchar ** p_txt, gboolean is_webvtt);
 
 G_END_DECLS
 
-#endif /* __GST_PB_UTILS_BASE_UTILS_H__ */
-
+#endif /* __GST_PBUTILS_MARKUP_UTILS_H__ */
