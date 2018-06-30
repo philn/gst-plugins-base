@@ -11,7 +11,7 @@ gstsubparse = library('gstsubparse',
   subparse_sources,
   c_args : gst_plugins_base_args,
   include_directories: [configinc, libsinc],
-  dependencies : [gst_base_dep],
+  dependencies : [gst_base_dep, gstpbutils_dep],
   install : true,
   install_dir : plugins_install_dir,
 )

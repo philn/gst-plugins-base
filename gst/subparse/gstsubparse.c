@@ -31,6 +31,8 @@
 #include <sys/types.h>
 #include <glib.h>
 
+#include <gst/pbutils/pbutils.h>
+
 #include "gstsubparse.h"
 #include "gstssaparse.h"
 #include "samiparse.h"
@@ -41,10 +43,6 @@
 GST_DEBUG_CATEGORY (sub_parse_debug);
 
 #define DEFAULT_ENCODING   NULL
-#define ATTRIBUTE_REGEX "\\s?[a-zA-Z0-9\\. \t\\(\\)]*"
-static const gchar *allowed_srt_tags[] = { "i", "b", "u", NULL };
-static const gchar *allowed_vtt_tags[] =
-    { "i", "b", "c", "u", "v", "ruby", "rt", NULL };
 
 enum
 {
@@ -667,192 +665,6 @@ strip_trailing_newlines (gchar * txt)
   }
 }
 
-/* we want to escape text in general, but retain basic markup like
- * <i></i>, <u></u>, and <b></b>. The easiest and safest way is to
- * just unescape a white list of allowed markups again after
- * escaping everything (the text between these simple markers isn't
- * necessarily escaped, so it seems best to do it like this) */
-static void
-subrip_unescape_formatting (gchar * txt, gconstpointer allowed_tags_ptr,
-    gboolean allows_tag_attributes)
-{
-  gchar *res;
-  GRegex *tag_regex;
-  gchar *allowed_tags_pattern, *search_pattern;
-  const gchar *replace_pattern;
-
-  /* No processing needed if no escaped tag marker found in the string. */
-  if (strstr (txt, "&lt;") == NULL)
-    return;
-
-  /* Build a list of alternates for our regexp.
-   * FIXME: Could be built once and stored */
-  allowed_tags_pattern = g_strjoinv ("|", (gchar **) allowed_tags_ptr);
-  /* Look for starting/ending escaped tags with optional attributes. */
-  search_pattern = g_strdup_printf ("&lt;(/)?\\ *(%s)(%s)&gt;",
-      allowed_tags_pattern, ATTRIBUTE_REGEX);
-  /* And unescape appropriately */
-  if (allows_tag_attributes) {
-    replace_pattern = "<\\1\\2\\3>";
-  } else {
-    replace_pattern = "<\\1\\2>";
-  }
-
-  tag_regex = g_regex_new (search_pattern, 0, 0, NULL);
-  res = g_regex_replace (tag_regex, txt, strlen (txt), 0,
-      replace_pattern, 0, NULL);
-
-  /* res will always be shorter than the input or identical, so this
-   * copy is OK */
-  strcpy (txt, res);
-
-  g_free (res);
-  g_free (search_pattern);
-  g_free (allowed_tags_pattern);
-
-  g_regex_unref (tag_regex);
-}
-
-
-static gboolean
-subrip_remove_unhandled_tag (gchar * start, gchar * stop)
-{
-  gchar *tag, saved;
-
-  tag = start + strlen ("&lt;");
-  if (*tag == '/')
-    ++tag;
-
-  if (g_ascii_tolower (*tag) < 'a' || g_ascii_tolower (*tag) > 'z')
-    return FALSE;
-
-  saved = *stop;
-  *stop = '\0';
-  GST_LOG ("removing unhandled tag '%s'", start);
-  *stop = saved;
-  memmove (start, stop, strlen (stop) + 1);
-  return TRUE;
-}
-
-/* remove tags we haven't explicitly allowed earlier on, like font tags
- * for example */
-static void
-subrip_remove_unhandled_tags (gchar * txt)
-{
-  gchar *pos, *gt;
-
-  for (pos = txt; pos != NULL && *pos != '\0'; ++pos) {
-    if (strncmp (pos, "&lt;", 4) == 0 && (gt = strstr (pos + 4, "&gt;"))) {
-      if (subrip_remove_unhandled_tag (pos, gt + strlen ("&gt;")))
-        --pos;
-    }
-  }
-}
-
-/* we only allow a fixed set of tags like <i>, <u> and <b>, so let's
- * take a simple approach. This code assumes the input has been
- * escaped and subrip_unescape_formatting() has then been run over the
- * input! This function adds missing closing markup tags and removes
- * broken closing tags for tags that have never been opened. */
-static void
-subrip_fix_up_markup (gchar ** p_txt, gconstpointer allowed_tags_ptr)
-{
-  gchar *cur, *next_tag;
-  GPtrArray *open_tags = NULL;
-  guint num_open_tags = 0;
-  const gchar *iter_tag;
-  guint offset = 0;
-  guint index;
-  gchar *cur_tag;
-  gchar *end_tag;
-  GRegex *tag_regex;
-  GMatchInfo *match_info;
-  gchar **allowed_tags = (gchar **) allowed_tags_ptr;
-
-  g_assert (*p_txt != NULL);
-
-  open_tags = g_ptr_array_new_with_free_func (g_free);
-  cur = *p_txt;
-  while (*cur != '\0') {
-    next_tag = strchr (cur, '<');
-    if (next_tag == NULL)
-      break;
-    offset = 0;
-    index = 0;
-    while (index < g_strv_length (allowed_tags)) {
-      iter_tag = allowed_tags[index];
-      /* Look for a white listed tag */
-      cur_tag = g_strconcat ("<", iter_tag, ATTRIBUTE_REGEX, ">", NULL);
-      tag_regex = g_regex_new (cur_tag, 0, 0, NULL);
-      (void) g_regex_match (tag_regex, next_tag, 0, &match_info);
-
-      if (g_match_info_matches (match_info)) {
-        gint start_pos, end_pos;
-        gchar *word = g_match_info_fetch (match_info, 0);
-        g_match_info_fetch_pos (match_info, 0, &start_pos, &end_pos);
-        if (start_pos == 0) {
-          offset = strlen (word);
-        }
-        g_free (word);
-      }
-      g_match_info_free (match_info);
-      g_regex_unref (tag_regex);
-      g_free (cur_tag);
-      index++;
-      if (offset) {
-        /* OK we found a tag, let's keep track of it */
-        g_ptr_array_add (open_tags, g_ascii_strdown (iter_tag, -1));
-        ++num_open_tags;
-        break;
-      }
-    }
-
-    if (offset) {
-      next_tag += offset;
-      cur = next_tag;
-      continue;
-    }
-
-    if (*next_tag == '<' && *(next_tag + 1) == '/') {
-      end_tag = strchr (cur, '>');
-      if (end_tag) {
-        const gchar *last = NULL;
-        if (num_open_tags > 0)
-          last = g_ptr_array_index (open_tags, num_open_tags - 1);
-        if (num_open_tags == 0
-            || g_ascii_strncasecmp (end_tag - 1, last, strlen (last))) {
-          GST_LOG ("broken input, closing tag '%s' is not open", end_tag - 1);
-          memmove (next_tag, end_tag + 1, strlen (end_tag) + 1);
-          next_tag -= strlen (end_tag);
-        } else {
-          --num_open_tags;
-          g_ptr_array_remove_index (open_tags, num_open_tags);
-        }
-      }
-    }
-    ++next_tag;
-    cur = next_tag;
-  }
-
-  if (num_open_tags > 0) {
-    GString *s;
-
-    s = g_string_new (*p_txt);
-    while (num_open_tags > 0) {
-      GST_LOG ("adding missing closing tag '%s'",
-          (char *) g_ptr_array_index (open_tags, num_open_tags - 1));
-      g_string_append_c (s, '<');
-      g_string_append_c (s, '/');
-      g_string_append (s, g_ptr_array_index (open_tags, num_open_tags - 1));
-      g_string_append_c (s, '>');
-      --num_open_tags;
-    }
-    g_free (*p_txt);
-    *p_txt = g_string_free (s, FALSE);
-  }
-  g_ptr_array_free (open_tags, TRUE);
-}
-
 static gboolean
 parse_subrip_time (const gchar * ts_string, GstClockTime * t)
 {
@@ -989,7 +801,7 @@ parse_webvtt_cue_settings (ParserState * state, const gchar * settings)
 }
 
 static gchar *
-parse_subrip (ParserState * state, const gchar * line)
+parse_subrip_full (ParserState * state, const gchar * line, gboolean is_webvtt)
 {
   gchar *ret;
 
@@ -1056,17 +868,19 @@ parse_subrip (ParserState * state, const gchar * line)
         ret = g_markup_escape_text (state->buf->str, state->buf->len);
         g_string_truncate (state->buf, 0);
         state->state = 0;
-        subrip_unescape_formatting (ret, state->allowed_tags,
-            state->allows_tag_attributes);
-        subrip_remove_unhandled_tags (ret);
-        strip_trailing_newlines (ret);
-        subrip_fix_up_markup (&ret, state->allowed_tags);
+        gst_markup_utils_sanitize_subrip_text (&ret, is_webvtt);
         return ret;
       }
       return NULL;
     default:
       g_return_val_if_reached (NULL);
   }
+}
+
+static gchar *
+parse_subrip (ParserState * state, const gchar * line)
+{
+  return parse_subrip_full (state, line, FALSE);
 }
 
 static gchar *
@@ -1144,7 +958,7 @@ parse_webvtt (ParserState * state, const gchar * line)
 
     return NULL;
   } else
-    return parse_subrip (state, line);
+    return parse_subrip_full (state, line, TRUE);
 }
 
 static void
@@ -1396,7 +1210,6 @@ parser_state_dispose (GstSubParse * self, ParserState * state)
         break;
     }
   }
-  state->allowed_tags = NULL;
 }
 
 /* regex type enum */
@@ -1596,7 +1409,6 @@ gst_sub_parse_format_autodetect (GstSubParse * self)
   self->parser_type = format;
   self->subtitle_codec = gst_sub_parse_get_format_description (format);
   parser_state_init (&self->state);
-  self->state.allowed_tags = NULL;
 
   switch (format) {
     case GST_SUB_PARSE_FORMAT_MDVDSUB:
@@ -1604,8 +1416,6 @@ gst_sub_parse_format_autodetect (GstSubParse * self)
       return gst_caps_new_simple ("text/x-raw",
           "format", G_TYPE_STRING, "pango-markup", NULL);
     case GST_SUB_PARSE_FORMAT_SUBRIP:
-      self->state.allowed_tags = (gpointer) allowed_srt_tags;
-      self->state.allows_tag_attributes = FALSE;
       self->parse_line = parse_subrip;
       return gst_caps_new_simple ("text/x-raw",
           "format", G_TYPE_STRING, "pango-markup", NULL);
@@ -1632,8 +1442,6 @@ gst_sub_parse_format_autodetect (GstSubParse * self)
       return gst_caps_new_simple ("text/x-raw",
           "format", G_TYPE_STRING, "utf8", NULL);
     case GST_SUB_PARSE_FORMAT_VTT:
-      self->state.allowed_tags = (gpointer) allowed_vtt_tags;
-      self->state.allows_tag_attributes = TRUE;
       self->parse_line = parse_webvtt;
       return gst_caps_new_simple ("text/x-raw",
           "format", G_TYPE_STRING, "pango-markup", NULL);
