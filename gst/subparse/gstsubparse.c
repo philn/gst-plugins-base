@@ -1005,6 +1005,47 @@ parse_webvtt_cue_settings (ParserState * state, const gchar * settings)
 }
 
 static gchar *
+parse_subrip2 (ParserState * state, const gchar * line)
+{
+  gchar *ret;
+
+  /* No need to parse that text if it's out of segment */
+  guint64 clip_start = 0, clip_stop = 0;
+  gboolean in_seg = FALSE;
+
+  /* Check our segment start/stop */
+  in_seg = gst_segment_clip (state->segment, GST_FORMAT_TIME,
+      state->start_time, state->start_time + state->duration,
+      &clip_start, &clip_stop);
+
+  if (in_seg) {
+    state->start_time = clip_start;
+    state->duration = clip_stop - clip_start;
+  } else {
+    state->state = 0;
+    return NULL;
+  }
+
+  /* looking for subtitle text; empty line ends this subtitle entry */
+  if (state->buf->len)
+    g_string_append_c (state->buf, '\n');
+  g_string_append (state->buf, line);
+  if (strlen (line) == 0) {
+    ret = g_markup_escape_text (state->buf->str, state->buf->len);
+    g_string_truncate (state->buf, 0);
+    state->state = 0;
+    subrip_unescape_formatting (ret, state->allowed_tags,
+        state->allows_tag_attributes);
+    subrip_remove_unhandled_tags (ret);
+    strip_trailing_newlines (ret);
+    subrip_fix_up_markup (&ret, state->allowed_tags);
+    g_printerr (">>>>> %s\n", ret);
+    return ret;
+  }
+  return NULL;
+}
+
+static gchar *
 parse_subrip (ParserState * state, const gchar * line)
 {
   gchar *ret;
@@ -1609,7 +1650,7 @@ gst_sub_parse_format_from_sink_caps (GstSubParse * self)
 
   self->state.allowed_tags = (gpointer) allowed_srt_tags;
   self->state.allows_tag_attributes = FALSE;
-  self->parse_line = parse_subrip;
+  self->parse_line = parse_subrip2;
 
   gst_caps_unref (sink_caps);
   return gst_caps_new_simple ("text/x-raw",

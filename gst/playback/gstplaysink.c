@@ -2554,16 +2554,17 @@ gen_text_chain (GstPlaySink * playsink)
             "video_sink", GST_PAD_LINK_CHECK_TEMPLATE_CAPS);
 
         /* make another little queue to decouple streams */
-        element = gst_element_factory_make ("queue", "subqueue");
+        element = gst_element_factory_make ("identity", "subqueue");
         if (element == NULL) {
           post_missing_element_message (playsink, "queue");
           GST_ELEMENT_WARNING (playsink, CORE, MISSING_PLUGIN,
               (_("Missing element '%s' - check your GStreamer installation."),
                   "queue"), ("rendering might be suboptimal"));
         } else {
-          g_object_set (G_OBJECT (element), "max-size-buffers", 3,
-              "max-size-bytes", 0, "max-size-time", (gint64) GST_SECOND,
-              "silent", TRUE, NULL);
+          g_object_set (element, "dump", TRUE, NULL);
+          /* g_object_set (G_OBJECT (element), "max-size-buffers", 3, */
+          /*     "max-size-bytes", 0, "max-size-time", (gint64) GST_SECOND, */
+          /*     "silent", TRUE, NULL); */
           gst_bin_add (bin, element);
           if (gst_element_link_pads_full (element, "src", chain->overlay,
                   "subtitle_sink", GST_PAD_LINK_CHECK_TEMPLATE_CAPS)) {
@@ -3024,7 +3025,7 @@ setup_audio_chain (GstPlaySink * playsink, gboolean raw)
   } else if (conv) {
     /* no volume, we need to add a volume element when we can */
     g_object_set (chain->conv, "use-volume",
-        ! !(playsink->flags & GST_PLAY_FLAG_SOFT_VOLUME), NULL);
+        !!(playsink->flags & GST_PLAY_FLAG_SOFT_VOLUME), NULL);
     GST_DEBUG_OBJECT (playsink, "the sink has no volume property");
 
     if (conv->volume && (playsink->flags & GST_PLAY_FLAG_SOFT_VOLUME)) {
@@ -4358,14 +4359,14 @@ caps_notify_cb (GstPad * pad, GParamSpec * unused, GstPlaySink * playsink)
 
   if (pad == playsink->audio_pad) {
     raw = is_raw_pad (pad);
-    reconfigure = (! !playsink->audio_pad_raw != ! !raw)
+    reconfigure = (!!playsink->audio_pad_raw != !!raw)
         && playsink->audiochain;
     GST_DEBUG_OBJECT (pad,
         "Audio caps changed: raw %d reconfigure %d caps %" GST_PTR_FORMAT, raw,
         reconfigure, caps);
   } else if (pad == playsink->video_pad) {
     raw = is_raw_pad (pad);
-    reconfigure = (! !playsink->video_pad_raw != ! !raw)
+    reconfigure = (!!playsink->video_pad_raw != !!raw)
         && playsink->videochain;
     GST_DEBUG_OBJECT (pad,
         "Video caps changed: raw %d reconfigure %d caps %" GST_PTR_FORMAT, raw,
